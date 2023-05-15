@@ -1,4 +1,4 @@
-import { component, html, createContext, useContext, useState, useProvideContext } from '../src/haunted.js';
+import { component, html, createContext, useContext, useState, useProvideContext, virtual } from '../src/haunted.js';
 import { fixture, expect, nextFrame } from '@open-wc/testing';
 
 describe('context', function() {
@@ -44,11 +44,14 @@ describe('context', function() {
 
   customElements.define('custom-provider', component(CustomProvider));
 
+  const virtualConsumer = virtual(() => useContext(Context));
+
   let withProviderValue, withProviderUpdate;
   let rootProviderValue, rootProviderUpdate;
   let nestedProviderValue, nestedProviderUpdate;
   let genericConsumerValue, genericConsumerUpdate;
   let customProviderValue, customProviderUpdate;
+  let virtualConsumerValue, virtualConsumerUpdate;
 
   function Tests() {
     [withProviderValue, withProviderUpdate] = useState();
@@ -56,6 +59,7 @@ describe('context', function() {
     [nestedProviderValue, nestedProviderUpdate] = useState('nested');
     [genericConsumerValue, genericConsumerUpdate] = useState('generic');
     [customProviderValue, customProviderUpdate] = useState('custom');
+    [virtualConsumerValue, virtualConsumerUpdate] = useState('virtual');
 
     return html`
       <div id="without-provider">
@@ -96,6 +100,12 @@ describe('context', function() {
           <context-consumer></context-consumer>
         </custom-provider>
       </div>
+
+      <div id="virtual-consumer">
+        <context-provider .value=${virtualConsumerValue}>${
+          virtualConsumer()
+        }</context-provider>
+      </div>
     `;
   }
 
@@ -103,13 +113,10 @@ describe('context', function() {
 
   customElements.define(testTag, component(Tests));
 
-  function getResults(selector: string) {
-    return [...document.querySelector('context-tests').shadowRoot.querySelectorAll(selector)].map(consumer => contexts.get(consumer));
-  }
-
-  function getContentResults(selector: string) {
-    return [...document.querySelector('context-tests').shadowRoot.querySelectorAll(selector)].map((consumer) => (consumer).textContent);
-  }
+  const _getResults = (extract: (Element) => any) =>
+    (selector: string) => [...document.querySelector('context-tests')!.shadowRoot!.querySelectorAll(selector)].map(extract),
+    getResults = _getResults(consumer => contexts.get(consumer)),
+    getContentResults = _getResults((consumer) => consumer.textContent);
 
   beforeEach(async () => {
     await fixture(html`<context-tests></context-tests>`);
@@ -145,5 +152,13 @@ describe('context', function() {
     it('should render template with context value', async () => {
       expect(getContentResults('#generic-consumer generic-consumer')).to.deep.equal(['generic-value']);
     });
+  });
+
+  it('works with virtual components', async () => {
+    expect(getContentResults('#virtual-consumer context-provider')).to.deep.equal(['virtual']);
+
+    virtualConsumerUpdate('spooky');
+    await nextFrame();
+    expect(getContentResults('#virtual-consumer context-provider')).to.deep.equal(['spooky']);
   });
 });
