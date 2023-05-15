@@ -4,19 +4,23 @@ import { State } from './state';
 import { contextEvent } from './symbols';
 import { setEffects } from './use-effect';
 
+interface ElementOrPart extends Element {
+  startNode: Node
+}
+
 /**
  * @function
  * @template T
  * @param    {Context<T>} context
  * @return   {T}
  */
-const useContext = hook(class<T> extends Hook<[Context<T>], T, Element> {
+const useContext = hook(class<T> extends Hook<[Context<T>], T, ElementOrPart> {
   Context!: Context<T>;
   value!: T;
   _ranEffect: boolean;
   _unsubscribe: VoidFunction | null;
 
-  constructor(id: number, state: State<Element>, _: Context<T>) {
+  constructor(id: number, state: State<ElementOrPart>, _: Context<T>) {
     super(id, state);
     this._updater = this._updater.bind(this);
     this._ranEffect = false;
@@ -25,10 +29,6 @@ const useContext = hook(class<T> extends Hook<[Context<T>], T, Element> {
   }
 
   update(Context: Context<T>): T {
-    if (this.state.virtual) {
-      throw new Error('can\'t be used with virtual components');
-    }
-
     if (this.Context !== Context) {
       this._subscribe(Context);
       this.Context = Context;
@@ -54,7 +54,8 @@ const useContext = hook(class<T> extends Hook<[Context<T>], T, Element> {
   _subscribe(Context: Context<T>): void {
     const detail = { Context, callback: this._updater };
 
-    this.state.host.dispatchEvent(new CustomEvent(contextEvent, {
+    const emitter = this.state.virtual ? this.state.host.startNode : this.state.host;
+    emitter.dispatchEvent(new CustomEvent(contextEvent, {
       detail, // carrier
       bubbles: true, // to bubble up in tree
       cancelable: true, // to be able to cancel
